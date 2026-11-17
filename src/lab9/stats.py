@@ -107,13 +107,31 @@ def paired_bootstrap(a: Sequence[float], b: Sequence[float], *, n_resamples: int
 def pass_at_k(n: int, c: int, k: int) -> float:
     """Probability that AT LEAST ONE of k trials drawn from n (c of them passing) passes.
     Unbiased estimator (Chen et al. 2021): 1 - C(n-c, k) / C(n, k). Raise ValueError if k > n."""
-    # TODO M6
-    raise NotImplementedError
+    from math import comb
+
+    _validate_pass_k(n, c, k)
+    failures = n - c
+    all_fail = 0.0 if failures < k else comb(failures, k) / comb(n, k)
+    return 1.0 - all_fail
 
 
 def pass_hat_k(n: int, c: int, k: int) -> float:
     """pass^k (tau-bench, Yao et al. 2024): probability that ALL k trials drawn from n pass.
     Unbiased estimator: C(c, k) / C(n, k). Raise ValueError if k > n.
     pass^k <= pass@1 <= pass@k; a reliable agent keeps pass^k close to pass@1."""
-    # TODO M6
-    raise NotImplementedError
+    from math import comb
+
+    _validate_pass_k(n, c, k)
+    return 0.0 if c < k else comb(c, k) / comb(n, k)
+
+
+def _validate_pass_k(n: int, c: int, k: int) -> None:
+    values = {"n": n, "c": c, "k": k}
+    if any(isinstance(v, bool) or not isinstance(v, int) for v in values.values()):
+        raise ValueError("n, c and k must be integers")
+    if n < 1:
+        raise ValueError("n must be positive")
+    if not 0 <= c <= n:
+        raise ValueError("c must satisfy 0 <= c <= n")
+    if not 1 <= k <= n:
+        raise ValueError("k must satisfy 1 <= k <= n")
