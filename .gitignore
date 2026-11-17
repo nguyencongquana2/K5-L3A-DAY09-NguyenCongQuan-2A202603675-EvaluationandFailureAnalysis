@@ -1,5 +1,21 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python / OS
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Runtime output
 src/reports/
 src/traces/
 *.sqlite
+*.sqlite-*
+student_drop/
+
+# Instructor-only hidden pack
+src/eval/instructor/
