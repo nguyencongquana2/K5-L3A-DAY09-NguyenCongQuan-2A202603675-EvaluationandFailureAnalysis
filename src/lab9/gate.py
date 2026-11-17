@@ -44,8 +44,46 @@ def slice_check(pr: dict, base: dict, spec: dict) -> tuple[list[str], list[str]]
       - fail if below "min", or if no_significant_drop and the paired CI over the slice's items
         lies entirely below 0
     Return (blocked ids like "slice:money_movement/pass_rate", report lines)."""
-    # TODO M5
-    return [], []
+    blocked, lines = [], []
+    bs = spec.get("bootstrap", {})
+    for rule in spec.get("slices", []):
+        name, metric = rule["name"], rule["metric"]
+        sid = f"slice:{name}/{metric}"
+        pr_items = per_item(pr, metric, slice_name=name)
+        base_items = per_item(base, metric, slice_name=name)
+        value = sum(pr_items.values()) / len(pr_items) if pr_items else None
+        verdict, note = "ok", ""
+        if value is None:
+            verdict = "missing"
+        elif "min" in rule and value < float(rule["min"]):
+            verdict = "fail"
+
+        if rule.get("no_significant_drop"):
+            keys = sorted(set(pr_items) & set(base_items))
+            if not keys or set(pr_items) != set(base_items):
+                verdict = "missing"
+                note = "slice item set differs from baseline"
+            else:
+                d, lo, hi = stats.paired_bootstrap(
+                    [pr_items[k] for k in keys], [base_items[k] for k in keys],
+                    n_resamples=bs.get("n_resamples", 1000), rng=bs.get("rng", 2027),
+                    confidence=bs.get("confidence", 0.95),
+                )
+                note = f"Δ {d:+.3f} CI [{lo:+.3f}, {hi:+.3f}]"
+                if hi < 0:
+                    verdict = "fail"
+
+        if verdict != "ok" and rule.get("blocking"):
+            blocked.append(sid)
+        label = {"ok": "ok", "missing": "MISSING"}.get(
+            verdict, "BLOCK" if rule.get("blocking") else "warn"
+        )
+        lines.append(
+            f"  {sid:<30} {str(None if value is None else round(value, 4)):<8} "
+            f"{json.dumps({k: v for k, v in rule.items() if k not in {'name', 'metric'}}):<40} "
+            f"{note:<28} {label}"
+        )
+    return blocked, lines
 
 
 def check(pr: dict, base: dict, spec: dict, base_spec: dict | None = None) -> tuple[list[str], list[str]]:
