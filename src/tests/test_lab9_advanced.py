@@ -63,6 +63,49 @@ def test_integrity_flags_loosened_spec():
     assert gate.integrity_check(base, base, SPEC, SPEC) == []
 
 
+def test_integrity_flags_hidden_style_report_tampering():
+    from lab9 import gate
+
+    base = _report(copy.deepcopy(ROWS), {"pass_rate": 1.0})
+
+    duplicate = copy.deepcopy(base)
+    duplicate["rows"][-1] = copy.deepcopy(duplicate["rows"][0])
+    assert gate.integrity_check(duplicate, base, SPEC)
+
+    crashed = copy.deepcopy(base)
+    crashed["evaluator_failures"] = ["E-000@1:TrialPass:boom"]
+    assert gate.integrity_check(crashed, base, SPEC)
+
+    missing_score = copy.deepcopy(base)
+    missing_score["rows"][0]["pass_rate"] = None
+    assert gate.integrity_check(missing_score, base, SPEC)
+
+    edited_summary = copy.deepcopy(base)
+    edited_summary["metrics"]["pass_rate"] = 0.9
+    assert gate.integrity_check(edited_summary, base, SPEC)
+
+    relabelled = copy.deepcopy(base)
+    relabelled["rows"][0]["slices"] = []
+    assert gate.integrity_check(relabelled, base, SPEC)
+
+
+def test_integrity_ratchets_slices_and_blocking_flags():
+    from lab9 import gate
+
+    base = _report(copy.deepcopy(ROWS), {"pass_rate": 1.0})
+    base_spec = dict(SPEC, slices=[{"name": "denial", "metric": "pass_rate", "min": 0.9,
+                                   "no_significant_drop": True, "blocking": True}])
+    assert gate.integrity_check(base, base, base_spec, base_spec) == []
+
+    no_slice = copy.deepcopy(base_spec)
+    no_slice["slices"] = []
+    assert gate.integrity_check(base, base, no_slice, base_spec)
+
+    nonblocking = copy.deepcopy(base_spec)
+    nonblocking["metrics"][0]["blocking"] = False
+    assert gate.integrity_check(base, base, nonblocking, base_spec)
+
+
 def test_slice_check_blocks_a_slice_below_floor():
     from lab9 import gate
 

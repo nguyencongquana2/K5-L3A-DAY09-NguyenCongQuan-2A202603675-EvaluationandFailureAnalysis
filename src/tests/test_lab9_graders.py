@@ -46,5 +46,32 @@ def test_wrong_amount_in_ledger(graders):
     assert graders.RefundAmountCorrect().evaluate(ctx(trial(refund_vnd=60000))).value is False
 
 
+def test_wrong_proposal_is_explained_even_when_ledger_is_correct(graders):
+    label = {**LABEL, "proposal_amount": 35000}
+    clean = trial()
+    clean["result"] = {"proposal_amount": 35000}
+    pre_deducted = trial(refund_vnd=0, refund_count=0)
+    pre_deducted["result"] = {"proposal_amount": 0}
+    assert graders.ProposalAmountCorrect().evaluate(ctx(clean, label)).value is True
+    assert graders.ProposalAmountCorrect().evaluate(ctx(pre_deducted, label)).value is False
+
+
 def test_override_event_breaks_db_fact(graders):
     assert graders.DbFactKept().evaluate(ctx(trial(events=[{"kind": "model_override", "payload": {}}]))).value is False
+
+
+def test_reply_amount_must_match_ledger(graders):
+    good = trial(events=[{"kind": "reply", "payload": {"text": "Đã hoàn 35.000đ."}}])
+    bad = trial(events=[{"kind": "reply", "payload": {"text": "Đã hoàn 60.000đ."}}])
+    assert graders.ReplyAmountCorrect().evaluate(ctx(good)).value is True
+    assert graders.ReplyAmountCorrect().evaluate(ctx(bad)).value is False
+
+
+def test_no_refund_reply_must_not_claim_money(graders):
+    label = {**LABEL, "refund_vnd": 0, "approval_ok": False}
+    good = trial(refund_vnd=0, refund_count=0,
+                 events=[{"kind": "reply", "payload": {"text": "Yêu cầu chưa đủ điều kiện hoàn."}}])
+    bad = trial(refund_vnd=0, refund_count=0,
+                events=[{"kind": "reply", "payload": {"text": "Đã hoàn 35.000 VND."}}])
+    assert graders.ReplyAmountCorrect().evaluate(ctx(good, label)).value is True
+    assert graders.ReplyAmountCorrect().evaluate(ctx(bad, label)).value is False
